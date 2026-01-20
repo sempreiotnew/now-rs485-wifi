@@ -92,6 +92,27 @@ static esp_err_t get_nearby_devices_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+static esp_err_t get_wired_status_handler(httpd_req_t *req) {
+  cJSON *root = cJSON_CreateObject();
+  if (!root) {
+    return ESP_FAIL;
+  }
+
+  cJSON_AddBoolToObject(root, "connected", true);
+
+  char *json_str = cJSON_PrintUnformatted(root);
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
+
+  ESP_LOGI(TAG, "%s", json_str);
+
+  cJSON_free(json_str);
+  cJSON_Delete(root);
+
+  return ESP_OK;
+}
+
 httpd_handle_t init_web_server(void) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   httpd_handle_t server = NULL;
@@ -120,11 +141,18 @@ httpd_handle_t init_web_server(void) {
       .handler = get_nearby_devices_handler,
   };
 
+  httpd_uri_t wired_status = {
+      .uri = "/api/wired/status",
+      .method = HTTP_GET,
+      .handler = get_wired_status_handler,
+  };
+
   if (httpd_start(&server, &config) == ESP_OK) {
     httpd_register_uri_handler(server, &root);
     httpd_register_uri_handler(server, &scan);
     httpd_register_uri_handler(server, &js);
     httpd_register_uri_handler(server, &nearby);
+    httpd_register_uri_handler(server, &wired_status);
     ESP_LOGI(TAG, "Webserver started");
   }
 

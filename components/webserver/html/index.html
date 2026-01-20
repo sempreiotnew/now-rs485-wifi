@@ -2,34 +2,674 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ESP32 Wi-Fi Setup</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+        color: #333;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      .card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      h2 {
+        font-size: 20px;
+        margin-bottom: 16px;
+        color: #2d3748;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .scan-btn {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .scan-btn:hover {
+        background: #5568d3;
+      }
+
+      .scan-btn:active {
+        transform: scale(0.98);
+      }
+
+      ul {
+        list-style: none;
+      }
+
+      li {
+        padding: 12px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: background 0.2s;
+      }
+
+      li:last-child {
+        border-bottom: none;
+      }
+
+      li:hover {
+        background: #f7fafc;
+      }
+
+      .network-info {
+        flex: 1;
+        font-size: 14px;
+      }
+
+      .ssid {
+        font-weight: 600;
+        color: #2d3748;
+      }
+
+      .rssi {
+        color: #718096;
+        font-size: 13px;
+        margin-left: 8px;
+      }
+
+      .mac {
+        color: #4a5568;
+        font-family: monospace;
+        font-size: 13px;
+      }
+
+      .last-msg {
+        color: #718096;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      .pair-btn {
+        background: #48bb78;
+        color: white;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-weight: 500;
+      }
+
+      .pair-btn:hover {
+        background: #38a169;
+      }
+
+      .pair-btn:active {
+        transform: scale(0.95);
+      }
+
+      .empty-state {
+        text-align: center;
+        color: #a0aec0;
+        padding: 20px;
+        font-size: 14px;
+      }
+
+      .loading {
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      .signal-strong {
+        color: #48bb78;
+      }
+      .signal-medium {
+        color: #ed8936;
+      }
+      .signal-weak {
+        color: #f56565;
+      }
+
+      .spinner {
+        border: 3px solid #e2e8f0;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .loading-state {
+        text-align: center;
+        padding: 20px;
+      }
+
+      .loading-text {
+        color: #718096;
+        font-size: 14px;
+        margin-top: 12px;
+      }
+
+      .loading-overlay {
+        position: relative;
+      }
+
+      .loading-overlay::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+      }
+
+      .card-loading {
+        position: relative;
+      }
+
+      .card-loading::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        border: 3px solid #e2e8f0;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        z-index: 10;
+      }
+
+      .title-loading {
+        display: inline-block;
+        border: 2px solid #e2e8f0;
+        border-top: 2px solid #667eea;
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        animation: spin 1s linear infinite;
+        margin-right: 8px;
+        vertical-align: middle;
+        flex-shrink: 0;
+      }
+
+      .title-loading.hidden {
+        visibility: hidden;
+      }
+
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .title-container {
+        display: flex;
+        align-items: center;
+        flex: 1;
+      }
+
+      .toggle-icon {
+        display: inline-block;
+        margin-left: 8px;
+        transition: transform 0.3s;
+        font-size: 18px;
+        color: #718096;
+      }
+
+      .toggle-icon.collapsed {
+        transform: rotate(-90deg);
+      }
+
+      .card-content {
+        max-height: 1000px;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+      }
+
+      .card-content.collapsed {
+        max-height: 0;
+      }
+
+      .status-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 30px 20px;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 500;
+      }
+
+      .status-indicator.connected {
+        background: #c6f6d5;
+        color: #22543d;
+      }
+
+      .status-indicator.disconnected {
+        background: #fed7d7;
+        color: #742a2a;
+      }
+
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+
+      .status-dot.connected {
+        background: #48bb78;
+      }
+
+      .status-dot.disconnected {
+        background: #f56565;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .wifi-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        margin-right: 8px;
+      }
+
+      .rssi-container {
+        display: flex;
+        align-items: center;
+      }
+    </style>
   </head>
   <body>
-    <h2>Available WiFi Networks</h2>
-    <button id="scanBtn">Scan</button>
-    <ul id="list"></ul>
+    <div class="container">
+      <div class="card">
+        <div class="card-header" onclick="toggleWifi()">
+          <div class="title-container">
+            <span id="wifiLoader" class="title-loading hidden"></span>
+            <h2 style="margin: 0">Wi-Fi Networks</h2>
+            <span id="wifiToggle" class="toggle-icon">▼</span>
+          </div>
+          <button
+            id="scanBtn"
+            class="scan-btn"
+            onclick="
+              event.stopPropagation();
+              scan();
+            "
+          >
+            Scan
+          </button>
+        </div>
+        <div id="wifiContent" class="card-content">
+          <ul id="list">
+            <li class="loading-state">
+              <div class="spinner"></div>
+              <div class="loading-text">Scanning networks...</div>
+            </li>
+          </ul>
+        </div>
+      </div>
 
-    <h2>Available NOW Networks</h2>
-    <ul id="listNow"></ul>
+      <div class="card">
+        <div class="card-header" onclick="toggleNow()">
+          <div class="title-container">
+            <span id="nowLoader" class="title-loading hidden"></span>
+            <h2 style="margin: 0">ESP-NOW Devices</h2>
+            <span id="nowToggle" class="toggle-icon">▼</span>
+          </div>
+        </div>
+        <div id="nowContent" class="card-content">
+          <ul id="listNow">
+            <li class="empty-state">Scanning devices...</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" onclick="toggleWired()">
+          <div class="title-container">
+            <span id="wiredLoader" class="title-loading hidden"></span>
+            <h2 style="margin: 0">Wired Connection</h2>
+            <span id="wiredToggle" class="toggle-icon">▼</span>
+          </div>
+        </div>
+        <div id="wiredContent" class="card-content">
+          <div id="wiredStatus" class="status-container">
+            <div class="status-indicator disconnected">
+              <span class="status-dot disconnected"></span>
+              <span>Checking connection...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script>
+      let isScanning = false;
+      let isScanningNow = false;
+      let isCheckingWired = false;
+      let hasWifiData = false;
+      let hasNowData = false;
+      let wifiExpanded = true;
+      let nowExpanded = true;
+      let wiredExpanded = true;
+      let wifiInterval = null;
+      let nowInterval = null;
+      let wiredInterval = null;
+
       window.addEventListener("DOMContentLoaded", () => {
         scan();
-        scan_now();
-      });
-      document.getElementById("scanBtn").addEventListener("click", () => {
-        scan();
-        scan_now();
+        // Start ESP-NOW scan with a slight delay to desync them
+        setTimeout(() => {
+          scan_now();
+        }, 100);
+        // Start wired check with another delay
+        setTimeout(() => {
+          checkWired();
+        }, 200);
+
+        // Start intervals
+        wifiInterval = setInterval(() => {
+          if (wifiExpanded) scan();
+        }, 15000);
+
+        nowInterval = setInterval(() => {
+          if (nowExpanded) scan_now();
+        }, 5000);
+
+        wiredInterval = setInterval(() => {
+          if (wiredExpanded) checkWired();
+        }, 5000);
       });
 
-      setInterval(() => {
-        scan();
-      }, 15000);
-      setInterval(() => {
-        scan_now();
-      }, 5000);
+      function toggleWifi() {
+        wifiExpanded = !wifiExpanded;
+        const content = document.getElementById("wifiContent");
+        const toggle = document.getElementById("wifiToggle");
+
+        if (wifiExpanded) {
+          content.classList.remove("collapsed");
+          toggle.classList.remove("collapsed");
+        } else {
+          content.classList.add("collapsed");
+          toggle.classList.add("collapsed");
+        }
+      }
+
+      function toggleNow() {
+        nowExpanded = !nowExpanded;
+        const content = document.getElementById("nowContent");
+        const toggle = document.getElementById("nowToggle");
+
+        if (nowExpanded) {
+          content.classList.remove("collapsed");
+          toggle.classList.remove("collapsed");
+        } else {
+          content.classList.add("collapsed");
+          toggle.classList.add("collapsed");
+        }
+      }
+
+      function toggleWired() {
+        wiredExpanded = !wiredExpanded;
+        const content = document.getElementById("wiredContent");
+        const toggle = document.getElementById("wiredToggle");
+
+        if (wiredExpanded) {
+          content.classList.remove("collapsed");
+          toggle.classList.remove("collapsed");
+        } else {
+          content.classList.add("collapsed");
+          toggle.classList.add("collapsed");
+        }
+      }
+
+      function getWifiIcon(rssi) {
+        if (rssi > -60) {
+          return `<svg class="wifi-icon" viewBox="0 0 24 24" fill="none" stroke="#48bb78" stroke-width="2">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>`;
+        } else if (rssi > -75) {
+          return `<svg class="wifi-icon" viewBox="0 0 24 24" fill="none" stroke="#ed8936" stroke-width="2">
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>`;
+        } else {
+          return `<svg class="wifi-icon" viewBox="0 0 24 24" fill="none" stroke="#f56565" stroke-width="2">
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>`;
+        }
+      }
+
+      async function scan() {
+        if (isScanning) return;
+        isScanning = true;
+
+        const loader = document.getElementById("wifiLoader");
+        const ul = document.getElementById("list");
+
+        // Show small loader in title
+        loader.classList.remove("hidden");
+
+        // If we don't have data yet, show initial loading
+        if (!hasWifiData) {
+          ul.innerHTML = `
+            <li class="loading-state">
+              <div class="spinner"></div>
+              <div class="loading-text">Scanning networks...</div>
+            </li>
+          `;
+        }
+
+        try {
+          const res = await fetch("/api/scan");
+          const networks = await res.json();
+
+          hasWifiData = true;
+
+          if (networks.length === 0) {
+            ul.innerHTML = '<li class="empty-state">No networks found</li>';
+          } else {
+            ul.innerHTML = "";
+            networks.forEach((n) => {
+              const li = document.createElement("li");
+              const rssi = parseInt(n.rssi);
+              const signalClass =
+                rssi > -60
+                  ? "signal-strong"
+                  : rssi > -75
+                    ? "signal-medium"
+                    : "signal-weak";
+
+              li.innerHTML = `
+                <div class="network-info">
+                  <span class="ssid">${n.ssid || "(Hidden)"}</span>
+                </div>
+                <div class="rssi-container">
+                  ${getWifiIcon(rssi)}
+                  <span class="rssi ${signalClass}">${n.rssi} dBm</span>
+                </div>
+              `;
+              ul.appendChild(li);
+            });
+          }
+        } catch (err) {
+          console.error("Scan error:", err);
+          if (!hasWifiData) {
+            ul.innerHTML =
+              '<li class="empty-state">Error scanning networks</li>';
+          }
+        } finally {
+          // Hide loader
+          loader.classList.add("hidden");
+          isScanning = false;
+        }
+      }
+
+      async function scan_now() {
+        if (isScanningNow) return;
+        isScanningNow = true;
+
+        const loader = document.getElementById("nowLoader");
+        const ul = document.getElementById("listNow");
+
+        // Show small loader in title
+        loader.classList.remove("hidden");
+
+        // If we don't have data yet, show simple loading text
+        if (!hasNowData) {
+          ul.innerHTML = '<li class="empty-state">Scanning devices...</li>';
+        }
+
+        try {
+          const res = await fetch("/api/nearby");
+          const networks = await res.json();
+
+          hasNowData = true;
+
+          if (networks.length === 0) {
+            ul.innerHTML = '<li class="empty-state">No devices found</li>';
+          } else {
+            ul.innerHTML = "";
+            networks.forEach((n) => {
+              const li = document.createElement("li");
+              li.innerHTML = `
+                <div class="network-info">
+                  <div class="mac">${n.mac}</div>
+                  <div class="last-msg">RSSI: ${n.rssi} dBm • Last: ${n.last_msg}</div>
+                </div>
+                <button class="pair-btn" onclick="pair('${n.mac}')">PAREAR</button>
+              `;
+              ul.appendChild(li);
+            });
+          }
+        } catch (err) {
+          console.error("Scan NOW error:", err);
+          if (!hasNowData) {
+            ul.innerHTML =
+              '<li class="empty-state">Error scanning devices</li>';
+          }
+        } finally {
+          // Hide loader
+          loader.classList.add("hidden");
+          isScanningNow = false;
+        }
+      }
+
+      function pair(mac) {
+        console.log("Pairing with:", mac);
+        // Add your pairing logic here
+        // Example: fetch(`/api/pair?mac=${mac}`)
+        alert(`Iniciando pareamento com ${mac}`);
+      }
+
+      async function checkWired() {
+        if (isCheckingWired) return;
+        isCheckingWired = true;
+
+        const loader = document.getElementById("wiredLoader");
+        const statusContainer = document.getElementById("wiredStatus");
+
+        // Show small loader in title
+        loader.classList.remove("hidden");
+
+        try {
+          const res = await fetch("/api/wired/status");
+          const data = await res.json();
+
+          // Assuming the API returns { connected: true/false }
+          const isConnected = data.connected;
+
+          if (isConnected) {
+            statusContainer.innerHTML = `
+              <div class="status-indicator connected">
+                <span class="status-dot connected"></span>
+                <span>Cable Connected - Communication Active</span>
+              </div>
+            `;
+          } else {
+            statusContainer.innerHTML = `
+              <div class="status-indicator disconnected">
+                <span class="status-dot disconnected"></span>
+                <span>Cable Disconnected - No Communication</span>
+              </div>
+            `;
+          }
+        } catch (err) {
+          console.error("Wired check error:", err);
+          statusContainer.innerHTML = `
+            <div class="status-indicator disconnected">
+              <span class="status-dot disconnected"></span>
+              <span>Error checking connection</span>
+            </div>
+          `;
+        } finally {
+          // Hide loader
+          loader.classList.add("hidden");
+          isCheckingWired = false;
+        }
+      }
     </script>
-
-    <script src="index.js"></script>
   </body>
 </html>
