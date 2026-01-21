@@ -144,6 +144,29 @@
         background: #2f855a;
       }
 
+      .unpair-btn {
+        background: #f56565;
+        color: white;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-weight: 500;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .unpair-btn:hover {
+        background: #e53e3e;
+      }
+
+      .unpair-btn:active {
+        transform: scale(0.95);
+        background: #c53030;
+      }
+
       .empty-state {
         text-align: center;
         color: #a0aec0;
@@ -449,10 +472,116 @@
       .btn-cancel:active {
         transform: scale(0.98);
       }
+
+      .pairing-modal-content {
+        background: white;
+        border-radius: 12px;
+        padding: 40px;
+        max-width: 350px;
+        width: 90%;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        text-align: center;
+      }
+
+      .pairing-spinner {
+        border: 4px solid #e2e8f0;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+      }
+
+      .pairing-text {
+        font-size: 18px;
+        font-weight: 500;
+        color: #2d3748;
+        margin-bottom: 10px;
+      }
+
+      .pairing-mac {
+        font-family: monospace;
+        font-size: 14px;
+        color: #718096;
+      }
+
+      .success-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: #c6f6d5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+      }
+
+      .success-text {
+        font-size: 22px;
+        font-weight: 600;
+        color: #22543d;
+        margin-bottom: 10px;
+      }
+
+      .btn-ok {
+        background: #48bb78;
+        color: white;
+        border: none;
+        padding: 12px 40px;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-top: 20px;
+        touch-action: manipulation;
+      }
+
+      .btn-ok:hover {
+        background: #38a169;
+      }
+
+      .section-header {
+        font-size: 14px;
+        font-weight: 600;
+        color: #4a5568;
+        padding: 12px;
+        background: #f7fafc;
+        border-bottom: 2px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status-badge {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .status-badge.paired {
+        background: #48bb78;
+        box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.2);
+      }
+
+      .status-badge.unpaired {
+        background: #cbd5e0;
+      }
+
+      .device-paired {
+        background: #f0fff4;
+        border-left: 3px solid #48bb78;
+      }
+
+      .device-unpaired {
+        background: white;
+      }
     </style>
   </head>
   <body>
-    <!-- Modal -->
+    <!-- WiFi Modal -->
     <div id="wifiModal" class="modal" onclick="closeModalOnBackdrop(event)">
       <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-header">Connect to Wi-Fi</div>
@@ -494,6 +623,15 @@
             CONECTAR
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Pairing Modal -->
+    <div id="pairingModal" class="modal" style="pointer-events: auto">
+      <div class="pairing-modal-content" id="pairingContent">
+        <div class="pairing-spinner"></div>
+        <div class="pairing-text">Pairing...</div>
+        <div class="pairing-mac" id="pairingMac"></div>
       </div>
     </div>
 
@@ -566,6 +704,8 @@
       let selectedSSID = null;
       let touchStartY = 0;
       let touchEndY = 0;
+      let pairedDevices = new Set();
+      let isPairing = false;
 
       window.addEventListener("DOMContentLoaded", () => {
         scan();
@@ -801,30 +941,84 @@
             ul.innerHTML = '<li class="empty-state">No devices found</li>';
           } else {
             ul.innerHTML = "";
-            networks.forEach((n) => {
-              const li = document.createElement("li");
-              li.innerHTML = `
-                <div class="network-info">
-                  <div class="mac">${n.mac}</div>
-                  <div class="last-msg">RSSI: ${n.rssi} dBm • Last: ${n.last_msg}</div>
-                </div>
-                <button class="pair-btn" data-mac="${n.mac}">PAREAR</button>
+
+            // Separate paired and unpaired devices
+            const paired = networks.filter((n) => pairedDevices.has(n.mac));
+            const unpaired = networks.filter((n) => !pairedDevices.has(n.mac));
+
+            // Show paired devices first
+            if (paired.length > 0) {
+              const pairedHeader = document.createElement("div");
+              pairedHeader.className = "section-header";
+              pairedHeader.innerHTML = `
+                <span class="status-badge paired"></span>
+                <span>PAIRED DEVICES (${paired.length})</span>
               `;
+              ul.appendChild(pairedHeader);
 
-              const btn = li.querySelector(".pair-btn");
-              btn.addEventListener("click", function (e) {
-                e.stopPropagation();
-                pair(n.mac);
+              paired.forEach((n) => {
+                const li = document.createElement("li");
+                li.className = "device-paired";
+                li.innerHTML = `
+                  <div class="network-info">
+                    <div class="mac">${n.mac}</div>
+                    <div class="last-msg">RSSI: ${n.rssi} dBm • Last: ${n.last_msg}</div>
+                  </div>
+                  <button class="unpair-btn" data-mac="${n.mac}">REMOVE</button>
+                `;
+
+                const btn = li.querySelector(".unpair-btn");
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  unpair(n.mac);
+                });
+
+                btn.addEventListener("touchend", function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  unpair(n.mac);
+                });
+
+                ul.appendChild(li);
               });
+            }
 
-              btn.addEventListener("touchend", function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                pair(n.mac);
+            // Show unpaired devices
+            if (unpaired.length > 0) {
+              const unpairedHeader = document.createElement("div");
+              unpairedHeader.className = "section-header";
+              unpairedHeader.innerHTML = `
+                <span class="status-badge unpaired"></span>
+                <span>AVAILABLE DEVICES (${unpaired.length})</span>
+              `;
+              ul.appendChild(unpairedHeader);
+
+              unpaired.forEach((n) => {
+                const li = document.createElement("li");
+                li.className = "device-unpaired";
+                li.innerHTML = `
+                  <div class="network-info">
+                    <div class="mac">${n.mac}</div>
+                    <div class="last-msg">RSSI: ${n.rssi} dBm • Last: ${n.last_msg}</div>
+                  </div>
+                  <button class="pair-btn" data-mac="${n.mac}">PAREAR</button>
+                `;
+
+                const btn = li.querySelector(".pair-btn");
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  pair(n.mac);
+                });
+
+                btn.addEventListener("touchend", function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  pair(n.mac);
+                });
+
+                ul.appendChild(li);
               });
-
-              ul.appendChild(li);
-            });
+            }
           }
         } catch (err) {
           console.error("Scan NOW error:", err);
@@ -838,9 +1032,270 @@
         }
       }
 
+      async function scan_now() {
+        if (isScanningNow) return;
+        isScanningNow = true;
+
+        const loader = document.getElementById("nowLoader");
+        const ul = document.getElementById("listNow");
+
+        loader.classList.remove("hidden");
+
+        if (!hasNowData) {
+          ul.innerHTML = '<li class="empty-state">Scanning devices...</li>';
+        }
+
+        try {
+          const res = await fetch("/api/nearby");
+          const networks = await res.json();
+
+          hasNowData = true;
+
+          if (networks.length === 0) {
+            ul.innerHTML = '<li class="empty-state">No devices found</li>';
+          } else {
+            ul.innerHTML = "";
+
+            // Separate paired and unpaired devices
+            const paired = networks.filter((n) => pairedDevices.has(n.mac));
+            const unpaired = networks.filter((n) => !pairedDevices.has(n.mac));
+
+            // Show paired devices first
+            if (paired.length > 0) {
+              const pairedHeader = document.createElement("div");
+              pairedHeader.className = "section-header";
+              pairedHeader.innerHTML = `
+                <span class="status-badge paired"></span>
+                <span>PAIRED DEVICES (${paired.length})</span>
+              `;
+              ul.appendChild(pairedHeader);
+
+              paired.forEach((n) => {
+                const li = document.createElement("li");
+                li.className = "device-paired";
+                li.innerHTML = `
+                  <div class="network-info">
+                    <div class="mac">${n.mac}</div>
+                    <div class="last-msg">RSSI: ${n.rssi} dBm • Last: ${n.last_msg}</div>
+                  </div>
+                  <button class="unpair-btn" data-mac="${n.mac}">REMOVE</button>
+                `;
+
+                const btn = li.querySelector(".unpair-btn");
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  unpair(n.mac);
+                });
+
+                btn.addEventListener("touchend", function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  unpair(n.mac);
+                });
+
+                ul.appendChild(li);
+              });
+            }
+
+            // Show unpaired devices
+            if (unpaired.length > 0) {
+              const unpairedHeader = document.createElement("div");
+              unpairedHeader.className = "section-header";
+              unpairedHeader.innerHTML = `
+                <span class="status-badge unpaired"></span>
+                <span>AVAILABLE DEVICES (${unpaired.length})</span>
+              `;
+              ul.appendChild(unpairedHeader);
+
+              unpaired.forEach((n) => {
+                const li = document.createElement("li");
+                li.className = "device-unpaired";
+                li.innerHTML = `
+                  <div class="network-info">
+                    <div class="mac">${n.mac}</div>
+                    <div class="last-msg">RSSI: ${n.rssi} dBm • Last: ${n.last_msg}</div>
+                  </div>
+                  <button class="pair-btn" data-mac="${n.mac}">PAREAR</button>
+                `;
+
+                const btn = li.querySelector(".pair-btn");
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  pair(n.mac);
+                });
+
+                btn.addEventListener("touchend", function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  pair(n.mac);
+                });
+
+                ul.appendChild(li);
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Scan NOW error:", err);
+          if (!hasNowData) {
+            ul.innerHTML =
+              '<li class="empty-state">Error scanning devices</li>';
+          }
+        } finally {
+          loader.classList.add("hidden");
+          isScanningNow = false;
+        }
+      }
+
+      function unpair(mac) {
+        if (isPairing) return;
+        isPairing = true;
+
+        // Show unpairing modal
+        const modal = document.getElementById("pairingModal");
+        const content = document.getElementById("pairingContent");
+
+        content.innerHTML = `
+          <div class="pairing-spinner"></div>
+          <div class="pairing-text">Removing...</div>
+          <div class="pairing-mac">${mac}</div>
+        `;
+
+        modal.classList.add("show");
+
+        // Make unpair request
+        fetch("/api/unpair", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ mac: mac }),
+        })
+          .then((response) => {
+            if (response.ok) {
+              // Success - show removed state
+              content.innerHTML = `
+              <div class="success-icon">✓</div>
+              <div class="success-text">REMOVED!</div>
+              <div class="pairing-mac">${mac}</div>
+              <button class="btn-ok" onclick="closeUnpairModal('${mac}')">OK</button>
+            `;
+            } else {
+              // Error
+              content.innerHTML = `
+              <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+              <div class="success-text" style="color: #742a2a;">REMOVAL FAILED</div>
+              <div class="pairing-mac">${mac}</div>
+              <button class="btn-ok" style="background: #f56565;" onclick="closePairingModalError()">OK</button>
+            `;
+            }
+          })
+          .catch((err) => {
+            console.error("Unpair error:", err);
+            content.innerHTML = `
+            <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+            <div class="success-text" style="color: #742a2a;">REMOVAL FAILED</div>
+            <div class="pairing-mac">${mac}</div>
+            <button class="btn-ok" style="background: #f56565;" onclick="closePairingModalError()">OK</button>
+          `;
+          });
+      }
+
+      function closeUnpairModal(mac) {
+        // Remove from paired devices
+        pairedDevices.delete(mac);
+
+        // Close modal
+        const modal = document.getElementById("pairingModal");
+        modal.classList.remove("show");
+
+        isPairing = false;
+
+        // Refresh ESP-NOW list after a short delay
+        setTimeout(() => {
+          scan_now();
+        }, 100);
+      }
+
       function pair(mac) {
-        console.log("Pairing with:", mac);
-        alert(`Iniciando pareamento com ${mac}`);
+        if (isPairing) return;
+        isPairing = true;
+
+        // Show pairing modal
+        const modal = document.getElementById("pairingModal");
+        const content = document.getElementById("pairingContent");
+
+        content.innerHTML = `
+          <div class="pairing-spinner"></div>
+          <div class="pairing-text">Pairing...</div>
+          <div class="pairing-mac">${mac}</div>
+        `;
+
+        modal.classList.add("show");
+
+        // Make pairing request
+        fetch("/api/pair", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ mac: mac }),
+        })
+          .then((response) => {
+            if (response.ok) {
+              // Success - show paired state
+              content.innerHTML = `
+              <div class="success-icon">✓</div>
+              <div class="success-text">PAIRED!</div>
+              <div class="pairing-mac">${mac}</div>
+              <button class="btn-ok" onclick="closePairingModal('${mac}')">OK</button>
+            `;
+            } else {
+              // Error
+              content.innerHTML = `
+              <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+              <div class="success-text" style="color: #742a2a;">PAIRING FAILED</div>
+              <div class="pairing-mac">${mac}</div>
+              <button class="btn-ok" style="background: #f56565;" onclick="closePairingModalError()">OK</button>
+            `;
+            }
+          })
+          .catch((err) => {
+            console.error("Pairing error:", err);
+            content.innerHTML = `
+            <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+            <div class="success-text" style="color: #742a2a;">PAIRING FAILED</div>
+            <div class="pairing-mac">${mac}</div>
+            <button class="btn-ok" style="background: #f56565;" onclick="closePairingModalError()">OK</button>
+          `;
+          });
+      }
+
+      function closePairingModal(mac) {
+        // Add to paired devices
+        pairedDevices.add(mac);
+
+        // Close modal
+        const modal = document.getElementById("pairingModal");
+        modal.classList.remove("show");
+
+        isPairing = false;
+
+        // Refresh ESP-NOW list after a short delay
+        setTimeout(() => {
+          scan_now();
+        }, 100);
+      }
+
+      function closePairingModalError() {
+        const modal = document.getElementById("pairingModal");
+        modal.classList.remove("show");
+
+        isPairing = false;
+
+        // Refresh ESP-NOW list after a short delay
+        setTimeout(() => {
+          scan_now();
+        }, 100);
       }
 
       async function checkWired() {

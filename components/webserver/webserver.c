@@ -161,6 +161,48 @@ static esp_err_t post_connect_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+static esp_err_t post_pair_handler(httpd_req_t *req) {
+  cJSON *root = cJSON_CreateObject();
+  if (!root) {
+    return ESP_FAIL;
+  }
+
+  cJSON_AddBoolToObject(root, "connected", true);
+
+  char *json_str = cJSON_PrintUnformatted(root);
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
+
+  ESP_LOGI(TAG, "%s", json_str);
+
+  cJSON_free(json_str);
+  cJSON_Delete(root);
+
+  return ESP_OK;
+}
+
+static esp_err_t post_unpair_handler(httpd_req_t *req) {
+  cJSON *root = cJSON_CreateObject();
+  if (!root) {
+    return ESP_FAIL;
+  }
+
+  cJSON_AddBoolToObject(root, "connected", true);
+
+  char *json_str = cJSON_PrintUnformatted(root);
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
+
+  ESP_LOGI(TAG, "%s", json_str);
+
+  cJSON_free(json_str);
+  cJSON_Delete(root);
+
+  return ESP_OK;
+}
+
 httpd_handle_t init_web_server(void) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   httpd_handle_t server = NULL;
@@ -201,6 +243,18 @@ httpd_handle_t init_web_server(void) {
       .handler = post_connect_handler,
   };
 
+  httpd_uri_t pair = {
+      .uri = "/api/pair",
+      .method = HTTP_POST,
+      .handler = post_pair_handler,
+  };
+
+  httpd_uri_t unpair = {
+      .uri = "/api/unpair",
+      .method = HTTP_POST,
+      .handler = post_unpair_handler,
+  };
+
   if (httpd_start(&server, &config) == ESP_OK) {
     httpd_register_uri_handler(server, &root);
     httpd_register_uri_handler(server, &scan);
@@ -208,6 +262,8 @@ httpd_handle_t init_web_server(void) {
     httpd_register_uri_handler(server, &nearby);
     httpd_register_uri_handler(server, &wired_status);
     httpd_register_uri_handler(server, &connect);
+    httpd_register_uri_handler(server, &pair);
+    httpd_register_uri_handler(server, &unpair);
 
     ESP_LOGI(TAG, "Webserver started");
   }
