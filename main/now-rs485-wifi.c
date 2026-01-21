@@ -17,11 +17,10 @@ void espnow_rx_cb(const esp_now_recv_info_t *info, const uint8_t *data,
            info->src_addr[0], info->src_addr[1], info->src_addr[2],
            info->src_addr[3], info->src_addr[4], info->src_addr[5]);
 
-  ESP_LOGI(TAG, "Received from: %s", mac_str);
   char str[len + 1];
   memcpy(str, data, len);
   str[len] = '\0';
-  ESP_LOGI(TAG, "Data (str): %s", str);
+  ESP_LOGI(TAG, "%s => %s", mac_str, str);
 
   uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS; // current time in ms
 

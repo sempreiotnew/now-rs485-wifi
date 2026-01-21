@@ -9,6 +9,8 @@
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
       }
 
       body {
@@ -51,6 +53,8 @@
         font-size: 14px;
         cursor: pointer;
         transition: background 0.2s;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
 
       .scan-btn:hover {
@@ -72,6 +76,9 @@
         align-items: center;
         justify-content: space-between;
         transition: background 0.2s;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
 
       li:last-child {
@@ -80,6 +87,10 @@
 
       li:hover {
         background: #f7fafc;
+      }
+
+      li:active {
+        background: #e2e8f0;
       }
 
       .network-info {
@@ -120,6 +131,8 @@
         cursor: pointer;
         transition: background 0.2s;
         font-weight: 500;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
 
       .pair-btn:hover {
@@ -128,6 +141,7 @@
 
       .pair-btn:active {
         transform: scale(0.95);
+        background: #2f855a;
       }
 
       .empty-state {
@@ -182,41 +196,18 @@
         margin-top: 12px;
       }
 
-      .loading-overlay {
-        position: relative;
-      }
-
-      .loading-overlay::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(255, 255, 255, 0.7);
-        display: flex;
+      .wifi-icon {
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 12px;
+        width: 24px;
+        height: 24px;
+        margin-right: 8px;
       }
 
-      .card-loading {
-        position: relative;
-      }
-
-      .card-loading::before {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        border: 3px solid #e2e8f0;
-        border-top: 3px solid #667eea;
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        animation: spin 1s linear infinite;
-        z-index: 10;
+      .rssi-container {
+        display: flex;
+        align-items: center;
       }
 
       .title-loading {
@@ -242,6 +233,8 @@
         justify-content: space-between;
         cursor: pointer;
         user-select: none;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
 
       .title-container {
@@ -324,40 +317,195 @@
         }
       }
 
-      .wifi-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        margin-right: 8px;
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        transition: opacity 0.15s ease-out;
       }
 
-      .rssi-container {
+      .modal.show {
         display: flex;
         align-items: center;
+        justify-content: center;
+        opacity: 1;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 12px;
+        padding: 32px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+
+      .modal-header {
+        font-size: 22px;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 8px;
+      }
+
+      .modal-ssid {
+        color: #667eea;
+        font-size: 18px;
+        margin-bottom: 24px;
+      }
+
+      .input-group {
+        margin-bottom: 24px;
+      }
+
+      .input-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #4a5568;
+        margin-bottom: 8px;
+      }
+
+      .password-container {
+        position: relative;
+      }
+
+      .password-input {
+        width: 100%;
+        padding: 12px;
+        padding-right: 45px;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 15px;
+        transition: border-color 0.2s;
+      }
+
+      .password-input:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .toggle-password {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #718096;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 4px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .toggle-password:hover {
+        color: #4a5568;
+      }
+
+      .modal-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .modal-btn {
+        flex: 1;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .btn-cancel {
+        background: #e2e8f0;
+        color: #4a5568;
+      }
+
+      .btn-cancel:hover {
+        background: #cbd5e0;
+      }
+
+      .btn-connect {
+        background: #667eea;
+        color: white;
+      }
+
+      .btn-connect:hover {
+        background: #5568d3;
+      }
+
+      .btn-connect:active,
+      .btn-cancel:active {
+        transform: scale(0.98);
       }
     </style>
   </head>
   <body>
+    <!-- Modal -->
+    <div id="wifiModal" class="modal" onclick="closeModalOnBackdrop(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">Connect to Wi-Fi</div>
+        <div class="modal-ssid" id="modalSSID"></div>
+        <div class="input-group">
+          <label class="input-label">Password</label>
+          <div class="password-container">
+            <input
+              type="password"
+              id="passwordInput"
+              class="password-input"
+              placeholder="Enter password"
+            />
+            <button
+              class="toggle-password"
+              onclick="togglePasswordVisibility()"
+            >
+              👁️
+            </button>
+          </div>
+        </div>
+        <div class="modal-buttons">
+          <button
+            class="modal-btn btn-cancel"
+            onclick="
+              event.stopPropagation();
+              closeModal();
+            "
+          >
+            CANCELAR
+          </button>
+          <button
+            class="modal-btn btn-connect"
+            onclick="
+              event.stopPropagation();
+              connectToWifi();
+            "
+          >
+            CONECTAR
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="container">
       <div class="card">
-        <div class="card-header" onclick="toggleWifi()">
+        <div class="card-header">
           <div class="title-container">
             <span id="wifiLoader" class="title-loading hidden"></span>
             <h2 style="margin: 0">Wi-Fi Networks</h2>
             <span id="wifiToggle" class="toggle-icon">▼</span>
           </div>
-          <button
-            id="scanBtn"
-            class="scan-btn"
-            onclick="
-              event.stopPropagation();
-              scan();
-            "
-          >
-            Scan
-          </button>
+          <button id="scanBtn" class="scan-btn">Scan</button>
         </div>
         <div id="wifiContent" class="card-content">
           <ul id="list">
@@ -370,7 +518,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header" onclick="toggleNow()">
+        <div class="card-header">
           <div class="title-container">
             <span id="nowLoader" class="title-loading hidden"></span>
             <h2 style="margin: 0">ESP-NOW Devices</h2>
@@ -385,7 +533,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header" onclick="toggleWired()">
+        <div class="card-header">
           <div class="title-container">
             <span id="wiredLoader" class="title-loading hidden"></span>
             <h2 style="margin: 0">Wired Connection</h2>
@@ -415,19 +563,19 @@
       let wifiInterval = null;
       let nowInterval = null;
       let wiredInterval = null;
+      let selectedSSID = null;
+      let touchStartY = 0;
+      let touchEndY = 0;
 
       window.addEventListener("DOMContentLoaded", () => {
         scan();
-        // Start ESP-NOW scan with a slight delay to desync them
         setTimeout(() => {
           scan_now();
         }, 100);
-        // Start wired check with another delay
         setTimeout(() => {
           checkWired();
         }, 200);
 
-        // Start intervals
         wifiInterval = setInterval(() => {
           if (wifiExpanded) scan();
         }, 15000);
@@ -439,6 +587,48 @@
         wiredInterval = setInterval(() => {
           if (wiredExpanded) checkWired();
         }, 5000);
+
+        // Add event listeners for toggles with touchend
+        const wifiHeader =
+          document.querySelector("#wifiContent").previousElementSibling;
+        const nowHeader =
+          document.querySelector("#nowContent").previousElementSibling;
+        const wiredHeader =
+          document.querySelector("#wiredContent").previousElementSibling;
+
+        wifiHeader.addEventListener("click", toggleWifi);
+        wifiHeader.addEventListener("touchend", function (e) {
+          e.preventDefault();
+          toggleWifi();
+        });
+
+        nowHeader.addEventListener("click", toggleNow);
+        nowHeader.addEventListener("touchend", function (e) {
+          e.preventDefault();
+          toggleNow();
+        });
+
+        wiredHeader.addEventListener("click", toggleWired);
+        wiredHeader.addEventListener("touchend", function (e) {
+          e.preventDefault();
+          toggleWired();
+        });
+
+        // Add event listener for scan button
+        document
+          .getElementById("scanBtn")
+          .addEventListener("click", function (e) {
+            e.stopPropagation();
+            scan();
+          });
+
+        document
+          .getElementById("scanBtn")
+          .addEventListener("touchend", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            scan();
+          });
       });
 
       function toggleWifi() {
@@ -509,10 +699,8 @@
         const loader = document.getElementById("wifiLoader");
         const ul = document.getElementById("list");
 
-        // Show small loader in title
         loader.classList.remove("hidden");
 
-        // If we don't have data yet, show initial loading
         if (!hasWifiData) {
           ul.innerHTML = `
             <li class="loading-state">
@@ -541,16 +729,40 @@
                   : rssi > -75
                     ? "signal-medium"
                     : "signal-weak";
+              const ssid = n.ssid || "(Hidden)";
 
               li.innerHTML = `
                 <div class="network-info">
-                  <span class="ssid">${n.ssid || "(Hidden)"}</span>
+                  <span class="ssid">${ssid}</span>
                 </div>
                 <div class="rssi-container">
                   ${getWifiIcon(rssi)}
                   <span class="rssi ${signalClass}">${n.rssi} dBm</span>
                 </div>
               `;
+
+              li.addEventListener("touchstart", function (e) {
+                touchStartY = e.touches[0].clientY;
+              });
+
+              li.addEventListener("touchmove", function (e) {
+                touchEndY = e.touches[0].clientY;
+              });
+
+              li.addEventListener("touchend", function (e) {
+                const moveDistance = Math.abs(touchEndY - touchStartY);
+                if (moveDistance < 10) {
+                  e.preventDefault();
+                  openModal(ssid);
+                }
+                touchStartY = 0;
+                touchEndY = 0;
+              });
+
+              li.addEventListener("click", function (e) {
+                openModal(ssid);
+              });
+
               ul.appendChild(li);
             });
           }
@@ -561,7 +773,6 @@
               '<li class="empty-state">Error scanning networks</li>';
           }
         } finally {
-          // Hide loader
           loader.classList.add("hidden");
           isScanning = false;
         }
@@ -574,10 +785,8 @@
         const loader = document.getElementById("nowLoader");
         const ul = document.getElementById("listNow");
 
-        // Show small loader in title
         loader.classList.remove("hidden");
 
-        // If we don't have data yet, show simple loading text
         if (!hasNowData) {
           ul.innerHTML = '<li class="empty-state">Scanning devices...</li>';
         }
@@ -599,8 +808,21 @@
                   <div class="mac">${n.mac}</div>
                   <div class="last-msg">RSSI: ${n.rssi} dBm • Last: ${n.last_msg}</div>
                 </div>
-                <button class="pair-btn" onclick="pair('${n.mac}')">PAREAR</button>
+                <button class="pair-btn" data-mac="${n.mac}">PAREAR</button>
               `;
+
+              const btn = li.querySelector(".pair-btn");
+              btn.addEventListener("click", function (e) {
+                e.stopPropagation();
+                pair(n.mac);
+              });
+
+              btn.addEventListener("touchend", function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                pair(n.mac);
+              });
+
               ul.appendChild(li);
             });
           }
@@ -611,7 +833,6 @@
               '<li class="empty-state">Error scanning devices</li>';
           }
         } finally {
-          // Hide loader
           loader.classList.add("hidden");
           isScanningNow = false;
         }
@@ -619,8 +840,6 @@
 
       function pair(mac) {
         console.log("Pairing with:", mac);
-        // Add your pairing logic here
-        // Example: fetch(`/api/pair?mac=${mac}`)
         alert(`Iniciando pareamento com ${mac}`);
       }
 
@@ -631,14 +850,12 @@
         const loader = document.getElementById("wiredLoader");
         const statusContainer = document.getElementById("wiredStatus");
 
-        // Show small loader in title
         loader.classList.remove("hidden");
 
         try {
           const res = await fetch("/api/wired/status");
           const data = await res.json();
 
-          // Assuming the API returns { connected: true/false }
           const isConnected = data.connected;
 
           if (isConnected) {
@@ -665,9 +882,75 @@
             </div>
           `;
         } finally {
-          // Hide loader
           loader.classList.add("hidden");
           isCheckingWired = false;
+        }
+      }
+
+      function openModal(ssid) {
+        selectedSSID = ssid;
+        document.getElementById("modalSSID").textContent = ssid;
+        document.getElementById("passwordInput").value = "";
+        document.getElementById("passwordInput").type = "password";
+        document.getElementById("wifiModal").classList.add("show");
+      }
+
+      function closeModal() {
+        const modal = document.getElementById("wifiModal");
+        modal.classList.remove("show");
+        modal.style.display = "none";
+        selectedSSID = null;
+        setTimeout(() => {
+          modal.style.display = "";
+        }, 0);
+      }
+
+      function closeModalOnBackdrop(event) {
+        if (event.target === event.currentTarget) {
+          closeModal();
+        }
+      }
+
+      function togglePasswordVisibility() {
+        const input = document.getElementById("passwordInput");
+        if (input.type === "password") {
+          input.type = "text";
+        } else {
+          input.type = "password";
+        }
+      }
+
+      async function connectToWifi() {
+        const password = document.getElementById("passwordInput").value;
+
+        if (!password) {
+          alert("Please enter a password");
+          return;
+        }
+
+        try {
+          const response = await fetch("/api/connect", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ssid: selectedSSID,
+              password: password,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            alert(`Successfully connected to ${selectedSSID}!`);
+            closeModal();
+          } else {
+            alert(`Connection failed: ${result.message || "Unknown error"}`);
+          }
+        } catch (err) {
+          console.error("Connection error:", err);
+          alert("Failed to connect. Please try again.");
         }
       }
     </script>

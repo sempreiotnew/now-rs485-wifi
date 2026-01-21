@@ -113,6 +113,54 @@ static esp_err_t get_wired_status_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+static esp_err_t post_connect_handler(httpd_req_t *req) {
+  char content[256] = {0};
+  int received = httpd_req_recv(req, content, req->content_len);
+  if (received <= 0) {
+    return ESP_FAIL;
+  }
+
+  // Parse JSON
+  cJSON *root = cJSON_Parse(content);
+  if (!root) {
+    return ESP_FAIL;
+  }
+
+  const cJSON *ssid = cJSON_GetObjectItem(root, "ssid");
+  const cJSON *password = cJSON_GetObjectItem(root, "password");
+
+  if (!cJSON_IsString(ssid) || !cJSON_IsString(password)) {
+    cJSON_Delete(root);
+    return ESP_FAIL;
+  }
+
+  ESP_LOGI(TAG, "SSID: %s", ssid->valuestring);
+  // connect_wifi("brasil", "brasil5g");
+
+  // Build response
+  cJSON *resp = cJSON_CreateObject();
+
+  if (true) {
+    cJSON_AddBoolToObject(resp, "success", true);
+    ESP_LOGI(TAG, "Wi-Fi connected");
+  } else {
+    cJSON_AddBoolToObject(resp, "success", false);
+    cJSON_AddStringToObject(resp, "reason", "connection_failed");
+    ESP_LOGE(TAG, "Wi-Fi failed");
+  }
+
+  char *json_str = cJSON_PrintUnformatted(resp);
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
+
+  cJSON_free(json_str);
+  cJSON_Delete(resp);
+  cJSON_Delete(root);
+
+  return ESP_OK;
+}
+
 httpd_handle_t init_web_server(void) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   httpd_handle_t server = NULL;
@@ -147,12 +195,20 @@ httpd_handle_t init_web_server(void) {
       .handler = get_wired_status_handler,
   };
 
+  httpd_uri_t connect = {
+      .uri = "/api/connect",
+      .method = HTTP_POST,
+      .handler = post_connect_handler,
+  };
+
   if (httpd_start(&server, &config) == ESP_OK) {
     httpd_register_uri_handler(server, &root);
     httpd_register_uri_handler(server, &scan);
     httpd_register_uri_handler(server, &js);
     httpd_register_uri_handler(server, &nearby);
     httpd_register_uri_handler(server, &wired_status);
+    httpd_register_uri_handler(server, &connect);
+
     ESP_LOGI(TAG, "Webserver started");
   }
 
