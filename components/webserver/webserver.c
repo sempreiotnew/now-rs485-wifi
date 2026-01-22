@@ -12,7 +12,58 @@ extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t index_js_start[] asm("_binary_index_js_start");
 extern const uint8_t index_js_end[] asm("_binary_index_js_end");
-bool gotcha = false;
+static httpd_handle_t g_httpd = NULL;
+static int g_ws_fd = -1; // client socket fd
+
+static esp_err_t ws_handler(httpd_req_t *req) {
+  if (req->method == HTTP_GET) {
+    // WebSocket handshake
+    g_ws_fd = httpd_req_to_sockfd(req);
+    g_httpd = req->handle;
+
+    ESP_LOGI(TAG, "WebSocket client connected (fd=%d)", g_ws_fd);
+    return ESP_OK;
+  }
+
+  httpd_ws_frame_t frame = {
+      .final = true,
+      .fragmented = false,
+  };
+
+  uint8_t buf[128];
+  frame.payload = buf;
+
+  // Receive frame
+  esp_err_t ret = httpd_ws_recv_frame(req, &frame, sizeof(buf));
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "WS recv failed: %s", esp_err_to_name(ret));
+    return ret;
+  }
+
+  ESP_LOGI(TAG, "WS RX: %.*s", frame.len, (char *)frame.payload);
+
+  return ESP_OK;
+}
+void ws_send_text(const char *msg) {
+  if (g_ws_fd < 0 || g_httpd == NULL)
+    return;
+
+  httpd_ws_frame_t frame = {
+      .final = true,
+      .fragmented = false,
+      .type = HTTPD_WS_TYPE_TEXT,
+      .payload = (uint8_t *)msg,
+      .len = strlen(msg),
+  };
+
+  esp_err_t err = httpd_ws_send_frame_async(g_httpd, g_ws_fd, &frame);
+
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "WS send failed: %s", esp_err_to_name(err));
+    g_ws_fd = -1;
+  }
+}
+
 /* ---------- ROOT HTML---------- */
 static esp_err_t root_get_handler(httpd_req_t *req) {
   size_t len = index_html_end - index_html_start;
@@ -26,11 +77,47 @@ static esp_err_t js_get_handler(httpd_req_t *req) {
   return httpd_resp_send(req, (const char *)index_js_start, len);
 }
 
+typedef struct {
+  char msg[64];
+} ws_msg_t;
+
+static void ws_send_work(void *arg) {
+  ws_msg_t *m = (ws_msg_t *)arg;
+
+  if (g_ws_fd < 0 || !g_httpd) {
+    free(m);
+    return;
+  }
+
+  httpd_ws_frame_t frame = {.type = HTTPD_WS_TYPE_TEXT,
+                            .payload = (uint8_t *)m->msg,
+                            .len = strlen(m->msg)};
+
+  httpd_ws_send_frame_async(g_httpd, g_ws_fd, &frame);
+  free(m);
+}
+
+void ws_send(const char *text) {
+  if (!g_httpd || g_ws_fd < 0)
+    return;
+
+  ws_msg_t *m = malloc(sizeof(ws_msg_t));
+  if (!m)
+    return;
+
+  strncpy(m->msg, text, sizeof(m->msg) - 1);
+  m->msg[sizeof(m->msg) - 1] = 0;
+
+  httpd_queue_work(g_httpd, ws_send_work, m);
+}
+
 void on_wifi_result(bool connected, esp_err_t reason) {
   if (connected) {
     ESP_LOGI("APP", "WiFi connected!");
+    ws_send("{\"wifi\":\"connected\"}");
   } else {
     ESP_LOGE("APP", "WiFi failed reason=%d", reason);
+    ws_send("{\"wifi\":\"failed\"}");
   }
 }
 
@@ -318,7 +405,10 @@ httpd_handle_t init_web_server(void) {
       .method = HTTP_POST,
       .handler = post_unpair_handler,
   };
-
+  httpd_uri_t ws_uri = {.uri = "/ws",
+                        .method = HTTP_GET,
+                        .handler = ws_handler,
+                        .is_websocket = true};
   if (httpd_start(&server, &config) == ESP_OK) {
     httpd_register_uri_handler(server, &root);
     httpd_register_uri_handler(server, &scan);
@@ -329,6 +419,10 @@ httpd_handle_t init_web_server(void) {
     httpd_register_uri_handler(server, &disconnect);
     httpd_register_uri_handler(server, &pair);
     httpd_register_uri_handler(server, &unpair);
+
+    httpd_register_uri_handler(server, &ws_uri);
+
+    g_httpd = server;
 
     ESP_LOGI(TAG, "Webserver started");
   }

@@ -21,6 +21,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     wifi_event_sta_disconnected_t *e = event_data;
 
     ESP_LOGI(TAG, "WIFI DISCONNECTED reason=%d", e->reason);
+    // esp_wifi_disconnect();
+    // esp_wifi_stop();
 
     if (s_wifi_cb) {
       s_wifi_cb(false, e->reason);

@@ -782,6 +782,7 @@
       let isPairing = false;
       let connectedNetwork = null;
       let isConnecting = false;
+      let ws = null;
 
       window.addEventListener("DOMContentLoaded", () => {
         scan();
@@ -845,6 +846,33 @@
             e.stopPropagation();
             scan();
           });
+
+        // Setup WebSocket
+        ws = new WebSocket("ws://" + location.host + "/ws");
+
+        ws.onmessage = (e) => {
+          console.log("WS:", e.data);
+          try {
+            const data = JSON.parse(e.data);
+
+            // Handle WiFi connection status
+            if (data.wifi === "connected") {
+              handleWiFiConnected();
+            } else if (data.wifi === "failed") {
+              handleWiFiFailed();
+            }
+          } catch (err) {
+            console.error("WebSocket parse error:", err);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+        };
+
+        ws.onclose = () => {
+          console.log("WebSocket closed");
+        };
       });
 
       function toggleWifi() {
@@ -1580,17 +1608,10 @@
             }),
           });
 
-          if (response.ok) {
-            // Success - show connected state
-            connectingContent.innerHTML = `
-              <div class="success-icon">✓</div>
-              <div class="success-text">CONNECTED!</div>
-              <div class="connecting-ssid">${ssidToConnect}</div>
-              <button class="btn-ok" onclick="closeConnectingModal('${ssidToConnect}')">OK</button>
-            `;
-          } else {
+          // Don't show success/failure here - wait for WebSocket confirmation
+          if (!response.ok) {
+            // Only handle immediate errors (like invalid request)
             const result = await response.json();
-            // Error
             connectingContent.innerHTML = `
               <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
               <div class="success-text" style="color: #742a2a;">CONNECTION FAILED</div>
@@ -1598,7 +1619,9 @@
               <div style="color: #718096; font-size: 13px; margin-top: 8px;">${result.message || "Unknown error"}</div>
               <button class="btn-ok" style="background: #f56565;" onclick="closeConnectingModalError()">OK</button>
             `;
+            isConnecting = false;
           }
+          // If response.ok, keep showing "Connecting..." and wait for WebSocket message
         } catch (err) {
           console.error("Connection error:", err);
           connectingContent.innerHTML = `
@@ -1607,7 +1630,38 @@
             <div class="connecting-ssid">${ssidToConnect}</div>
             <button class="btn-ok" style="background: #f56565;" onclick="closeConnectingModalError()">OK</button>
           `;
+          isConnecting = false;
         }
+      }
+
+      function handleWiFiConnected() {
+        if (!isConnecting) return;
+
+        const connectingContent = document.getElementById("connectingContent");
+        const ssid = selectedSSID;
+
+        // Show success
+        connectingContent.innerHTML = `
+          <div class="success-icon">✓</div>
+          <div class="success-text">CONNECTED!</div>
+          <div class="connecting-ssid">${ssid}</div>
+          <button class="btn-ok" onclick="closeConnectingModal('${ssid}')">OK</button>
+        `;
+      }
+
+      function handleWiFiFailed() {
+        if (!isConnecting) return;
+
+        const connectingContent = document.getElementById("connectingContent");
+        const ssid = selectedSSID;
+
+        // Show failure
+        connectingContent.innerHTML = `
+          <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+          <div class="success-text" style="color: #742a2a;">CONNECTION FAILED</div>
+          <div class="connecting-ssid">${ssid}</div>
+          <button class="btn-ok" style="background: #f56565;" onclick="closeConnectingModalError()">OK</button>
+        `;
       }
 
       function closeConnectingModal(ssid) {
