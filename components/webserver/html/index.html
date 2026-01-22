@@ -578,6 +578,71 @@
       .device-unpaired {
         background: white;
       }
+
+      .network-connected {
+        background: #f0f9ff;
+        border-left: 3px solid #667eea;
+      }
+
+      .network-available {
+        background: white;
+      }
+
+      .disconnect-btn {
+        background: #f56565;
+        color: white;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.2s;
+        font-weight: 500;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .disconnect-btn:hover {
+        background: #e53e3e;
+      }
+
+      .disconnect-btn:active {
+        transform: scale(0.95);
+        background: #c53030;
+      }
+
+      .connecting-modal-content {
+        background: white;
+        border-radius: 12px;
+        padding: 40px;
+        max-width: 350px;
+        width: 90%;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        text-align: center;
+      }
+
+      .connecting-spinner {
+        border: 4px solid #e2e8f0;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+      }
+
+      .connecting-text {
+        font-size: 18px;
+        font-weight: 500;
+        color: #2d3748;
+        margin-bottom: 10px;
+      }
+
+      .connecting-ssid {
+        font-size: 14px;
+        color: #667eea;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -623,6 +688,15 @@
             CONECTAR
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Connecting Modal -->
+    <div id="connectingModal" class="modal" style="pointer-events: auto">
+      <div class="connecting-modal-content" id="connectingContent">
+        <div class="connecting-spinner"></div>
+        <div class="connecting-text">Connecting...</div>
+        <div class="connecting-ssid" id="connectingSSID"></div>
       </div>
     </div>
 
@@ -706,6 +780,8 @@
       let touchEndY = 0;
       let pairedDevices = new Set();
       let isPairing = false;
+      let connectedNetwork = null;
+      let isConnecting = false;
 
       window.addEventListener("DOMContentLoaded", () => {
         scan();
@@ -833,7 +909,7 @@
       }
 
       async function scan() {
-        if (isScanning) return;
+        if (isScanning || isConnecting) return;
         isScanning = true;
 
         const loader = document.getElementById("wifiLoader");
@@ -860,51 +936,135 @@
             ul.innerHTML = '<li class="empty-state">No networks found</li>';
           } else {
             ul.innerHTML = "";
+
+            // Remove duplicates by SSID
+            const uniqueNetworks = [];
+            const seenSSIDs = new Set();
+
             networks.forEach((n) => {
-              const li = document.createElement("li");
-              const rssi = parseInt(n.rssi);
-              const signalClass =
-                rssi > -60
-                  ? "signal-strong"
-                  : rssi > -75
-                    ? "signal-medium"
-                    : "signal-weak";
               const ssid = n.ssid || "(Hidden)";
-
-              li.innerHTML = `
-                <div class="network-info">
-                  <span class="ssid">${ssid}</span>
-                </div>
-                <div class="rssi-container">
-                  ${getWifiIcon(rssi)}
-                  <span class="rssi ${signalClass}">${n.rssi} dBm</span>
-                </div>
-              `;
-
-              li.addEventListener("touchstart", function (e) {
-                touchStartY = e.touches[0].clientY;
-              });
-
-              li.addEventListener("touchmove", function (e) {
-                touchEndY = e.touches[0].clientY;
-              });
-
-              li.addEventListener("touchend", function (e) {
-                const moveDistance = Math.abs(touchEndY - touchStartY);
-                if (moveDistance < 10) {
-                  e.preventDefault();
-                  openModal(ssid);
-                }
-                touchStartY = 0;
-                touchEndY = 0;
-              });
-
-              li.addEventListener("click", function (e) {
-                openModal(ssid);
-              });
-
-              ul.appendChild(li);
+              if (!seenSSIDs.has(ssid)) {
+                seenSSIDs.add(ssid);
+                uniqueNetworks.push(n);
+              }
             });
+
+            // Separate connected and available networks
+            const connected = uniqueNetworks.filter((n) => {
+              const ssid = n.ssid || "(Hidden)";
+              return connectedNetwork === ssid;
+            });
+            const available = uniqueNetworks.filter((n) => {
+              const ssid = n.ssid || "(Hidden)";
+              return connectedNetwork !== ssid;
+            });
+
+            // Show connected network first
+            if (connected.length > 0) {
+              const connectedHeader = document.createElement("div");
+              connectedHeader.className = "section-header";
+              connectedHeader.innerHTML = `
+                <span class="status-badge paired"></span>
+                <span>CONNECTED</span>
+              `;
+              ul.appendChild(connectedHeader);
+
+              connected.forEach((n) => {
+                const li = document.createElement("li");
+                const rssi = parseInt(n.rssi);
+                const signalClass =
+                  rssi > -60
+                    ? "signal-strong"
+                    : rssi > -75
+                      ? "signal-medium"
+                      : "signal-weak";
+                const ssid = n.ssid || "(Hidden)";
+
+                li.className = "network-connected";
+                li.innerHTML = `
+                  <div class="network-info">
+                    <span class="ssid">${ssid}</span>
+                  </div>
+                  <div class="rssi-container">
+                    ${getWifiIcon(rssi)}
+                    <span class="rssi ${signalClass}">${n.rssi} dBm</span>
+                    <button class="disconnect-btn" data-ssid="${ssid}" style="margin-left: 12px;">DISCONNECT</button>
+                  </div>
+                `;
+
+                const btn = li.querySelector(".disconnect-btn");
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  disconnect(ssid);
+                });
+
+                btn.addEventListener("touchend", function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  disconnect(ssid);
+                });
+
+                ul.appendChild(li);
+              });
+            }
+
+            // Show available networks
+            if (available.length > 0) {
+              const availableHeader = document.createElement("div");
+              availableHeader.className = "section-header";
+              availableHeader.innerHTML = `
+                <span class="status-badge unpaired"></span>
+                <span>AVAILABLE NETWORKS (${available.length})</span>
+              `;
+              ul.appendChild(availableHeader);
+
+              available.forEach((n) => {
+                const li = document.createElement("li");
+                const rssi = parseInt(n.rssi);
+                const signalClass =
+                  rssi > -60
+                    ? "signal-strong"
+                    : rssi > -75
+                      ? "signal-medium"
+                      : "signal-weak";
+                const ssid = n.ssid || "(Hidden)";
+
+                li.className = "network-available";
+                li.innerHTML = `
+                  <div class="network-info">
+                    <span class="ssid">${ssid}</span>
+                  </div>
+                  <div class="rssi-container">
+                    ${getWifiIcon(rssi)}
+                    <span class="rssi ${signalClass}">${n.rssi} dBm</span>
+                  </div>
+                `;
+
+                li.addEventListener("touchstart", function (e) {
+                  touchStartY = e.touches[0].clientY;
+                });
+
+                li.addEventListener("touchmove", function (e) {
+                  touchEndY = e.touches[0].clientY;
+                });
+
+                li.addEventListener("touchend", function (e) {
+                  const moveDistance = Math.abs(touchEndY - touchStartY);
+                  if (moveDistance < 10) {
+                    e.preventDefault();
+                    openModal(ssid);
+                  }
+                  touchStartY = 0;
+                  touchEndY = 0;
+                });
+
+                li.addEventListener("click", function (e) {
+                  openModal(ssid);
+                });
+
+                ul.appendChild(li);
+              });
+            }
           }
         } catch (err) {
           console.error("Scan error:", err);
@@ -1201,7 +1361,7 @@
       }
 
       function closeUnpairModal(mac) {
-        // Remove from paired devices
+        // Remove from paired devices immediately
         pairedDevices.delete(mac);
 
         // Close modal
@@ -1210,10 +1370,8 @@
 
         isPairing = false;
 
-        // Refresh ESP-NOW list after a short delay
-        setTimeout(() => {
-          scan_now();
-        }, 100);
+        // Trigger immediate scan
+        scan_now();
       }
 
       function pair(mac) {
@@ -1271,7 +1429,7 @@
       }
 
       function closePairingModal(mac) {
-        // Add to paired devices
+        // Add to paired devices immediately
         pairedDevices.add(mac);
 
         // Close modal
@@ -1280,10 +1438,8 @@
 
         isPairing = false;
 
-        // Refresh ESP-NOW list after a short delay
-        setTimeout(() => {
-          scan_now();
-        }, 100);
+        // Trigger immediate scan
+        scan_now();
       }
 
       function closePairingModalError() {
@@ -1343,6 +1499,9 @@
       }
 
       function openModal(ssid) {
+        if (isConnecting || isScanning) {
+          return;
+        }
         selectedSSID = ssid;
         document.getElementById("modalSSID").textContent = ssid;
         document.getElementById("passwordInput").value = "";
@@ -1376,12 +1535,31 @@
       }
 
       async function connectToWifi() {
+        if (isConnecting) return;
+
         const password = document.getElementById("passwordInput").value;
 
         if (!password) {
           alert("Please enter a password");
           return;
         }
+
+        isConnecting = true;
+        const ssidToConnect = selectedSSID;
+
+        // Close password modal
+        closeModal();
+
+        // Show connecting modal
+        const connectingModal = document.getElementById("connectingModal");
+        const connectingContent = document.getElementById("connectingContent");
+
+        connectingContent.innerHTML = `
+          <div class="connecting-spinner"></div>
+          <div class="connecting-text">Connecting...</div>
+          <div class="connecting-ssid">${ssidToConnect}</div>
+        `;
+        connectingModal.classList.add("show");
 
         try {
           const response = await fetch("/api/connect", {
@@ -1390,23 +1568,146 @@
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              ssid: selectedSSID,
+              ssid: ssidToConnect,
               password: password,
             }),
           });
 
-          const result = await response.json();
-
           if (response.ok) {
-            alert(`Successfully connected to ${selectedSSID}!`);
-            closeModal();
+            // Success - show connected state
+            connectingContent.innerHTML = `
+              <div class="success-icon">✓</div>
+              <div class="success-text">CONNECTED!</div>
+              <div class="connecting-ssid">${ssidToConnect}</div>
+              <button class="btn-ok" onclick="closeConnectingModal('${ssidToConnect}')">OK</button>
+            `;
           } else {
-            alert(`Connection failed: ${result.message || "Unknown error"}`);
+            const result = await response.json();
+            // Error
+            connectingContent.innerHTML = `
+              <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+              <div class="success-text" style="color: #742a2a;">CONNECTION FAILED</div>
+              <div class="connecting-ssid">${ssidToConnect}</div>
+              <div style="color: #718096; font-size: 13px; margin-top: 8px;">${result.message || "Unknown error"}</div>
+              <button class="btn-ok" style="background: #f56565;" onclick="closeConnectingModalError()">OK</button>
+            `;
           }
         } catch (err) {
           console.error("Connection error:", err);
-          alert("Failed to connect. Please try again.");
+          connectingContent.innerHTML = `
+            <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+            <div class="success-text" style="color: #742a2a;">CONNECTION FAILED</div>
+            <div class="connecting-ssid">${ssidToConnect}</div>
+            <button class="btn-ok" style="background: #f56565;" onclick="closeConnectingModalError()">OK</button>
+          `;
         }
+      }
+
+      function closeConnectingModal(ssid) {
+        // Set connected network immediately
+        connectedNetwork = ssid;
+
+        // Close modal
+        const modal = document.getElementById("connectingModal");
+        modal.classList.remove("show");
+
+        isConnecting = false;
+
+        // Trigger immediate scan
+        scan();
+      }
+
+      function closeConnectingModalError() {
+        const modal = document.getElementById("connectingModal");
+        modal.classList.remove("show");
+
+        isConnecting = false;
+
+        // Refresh WiFi list
+        setTimeout(() => {
+          scan();
+        }, 100);
+      }
+
+      function disconnect(ssid) {
+        if (isConnecting) return;
+        isConnecting = true;
+
+        // Show disconnecting modal
+        const modal = document.getElementById("connectingModal");
+        const content = document.getElementById("connectingContent");
+
+        content.innerHTML = `
+          <div class="connecting-spinner"></div>
+          <div class="connecting-text">Disconnecting...</div>
+          <div class="connecting-ssid">${ssid}</div>
+        `;
+
+        modal.classList.add("show");
+
+        // Make disconnect request
+        fetch("/api/disconnect", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ssid: ssid }),
+        })
+          .then((response) => {
+            if (response.ok) {
+              // Success - show disconnected state
+              content.innerHTML = `
+              <div class="success-icon">✓</div>
+              <div class="success-text">DISCONNECTED!</div>
+              <div class="connecting-ssid">${ssid}</div>
+              <button class="btn-ok" onclick="closeDisconnectModal()">OK</button>
+            `;
+            } else {
+              // Error
+              content.innerHTML = `
+              <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+              <div class="success-text" style="color: #742a2a;">DISCONNECT FAILED</div>
+              <div class="connecting-ssid">${ssid}</div>
+              <button class="btn-ok" style="background: #f56565;" onclick="closeDisconnectModalError()">OK</button>
+            `;
+            }
+          })
+          .catch((err) => {
+            console.error("Disconnect error:", err);
+            content.innerHTML = `
+            <div class="success-icon" style="background: #fed7d7; color: #742a2a;">✗</div>
+            <div class="success-text" style="color: #742a2a;">DISCONNECT FAILED</div>
+            <div class="connecting-ssid">${ssid}</div>
+            <button class="btn-ok" style="background: #f56565;" onclick="closeDisconnectModalError()">OK</button>
+          `;
+          });
+      }
+
+      function closeDisconnectModal() {
+        // Clear connected network immediately
+        connectedNetwork = null;
+
+        // Close modal
+        const modal = document.getElementById("connectingModal");
+        modal.classList.remove("show");
+
+        isConnecting = false;
+
+        // Trigger immediate scan
+        scan();
+      }
+
+      function closeDisconnectModalError() {
+        // Close modal
+        const modal = document.getElementById("connectingModal");
+        modal.classList.remove("show");
+
+        isConnecting = false;
+
+        // Refresh WiFi list
+        setTimeout(() => {
+          scan();
+        }, 100);
       }
     </script>
   </body>

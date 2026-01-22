@@ -161,6 +161,27 @@ static esp_err_t post_connect_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+static esp_err_t post_disconnect_handler(httpd_req_t *req) {
+  cJSON *root = cJSON_CreateObject();
+  if (!root) {
+    return ESP_FAIL;
+  }
+
+  cJSON_AddBoolToObject(root, "connected", true);
+
+  char *json_str = cJSON_PrintUnformatted(root);
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
+
+  ESP_LOGI(TAG, "%s", json_str);
+
+  cJSON_free(json_str);
+  cJSON_Delete(root);
+
+  return ESP_OK;
+}
+
 static esp_err_t post_pair_handler(httpd_req_t *req) {
   cJSON *root = cJSON_CreateObject();
   if (!root) {
@@ -205,6 +226,7 @@ static esp_err_t post_unpair_handler(httpd_req_t *req) {
 
 httpd_handle_t init_web_server(void) {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.max_uri_handlers = 16;
   httpd_handle_t server = NULL;
 
   httpd_uri_t root = {
@@ -243,6 +265,12 @@ httpd_handle_t init_web_server(void) {
       .handler = post_connect_handler,
   };
 
+  httpd_uri_t disconnect = {
+      .uri = "/api/disconnect",
+      .method = HTTP_POST,
+      .handler = post_disconnect_handler,
+  };
+
   httpd_uri_t pair = {
       .uri = "/api/pair",
       .method = HTTP_POST,
@@ -262,6 +290,7 @@ httpd_handle_t init_web_server(void) {
     httpd_register_uri_handler(server, &nearby);
     httpd_register_uri_handler(server, &wired_status);
     httpd_register_uri_handler(server, &connect);
+    httpd_register_uri_handler(server, &disconnect);
     httpd_register_uri_handler(server, &pair);
     httpd_register_uri_handler(server, &unpair);
 
