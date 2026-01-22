@@ -12,7 +12,7 @@ extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t index_js_start[] asm("_binary_index_js_start");
 extern const uint8_t index_js_end[] asm("_binary_index_js_end");
-
+bool gotcha = false;
 /* ---------- ROOT HTML---------- */
 static esp_err_t root_get_handler(httpd_req_t *req) {
   size_t len = index_html_end - index_html_start;
@@ -26,8 +26,27 @@ static esp_err_t js_get_handler(httpd_req_t *req) {
   return httpd_resp_send(req, (const char *)index_js_start, len);
 }
 
+void on_wifi_result(bool connected, esp_err_t reason) {
+  if (connected) {
+    ESP_LOGI("APP", "WiFi connected!");
+  } else {
+    ESP_LOGE("APP", "WiFi failed reason=%d", reason);
+  }
+}
+
 /* ---------- SCAN API ---------- */
 static esp_err_t scan_get_handler(httpd_req_t *req) {
+  char ssid[33]; // max SSID length = 32 + '\0'
+
+  char connected_ssid[33] = {0};
+  bool is_connected =
+      get_connected_ssid(connected_ssid, sizeof(connected_ssid));
+
+  if (get_connected_ssid(ssid, sizeof(ssid))) {
+    ESP_LOGW(TAG, "Connected to SSID: %s", ssid);
+  } else {
+    ESP_LOGW(TAG, "Not connected to any Wi-Fi");
+  }
   wifi_ap_record_t *aps = NULL;
   uint16_t count = wifi_scan(&aps);
 
@@ -51,6 +70,13 @@ static esp_err_t scan_get_handler(httpd_req_t *req) {
     cJSON_AddStringToObject(obj, "ssid", (char *)aps[i].ssid);
     cJSON_AddNumberToObject(obj, "rssi", aps[i].rssi);
     cJSON_AddNumberToObject(obj, "channel", aps[i].primary);
+    bool connected = false;
+    const char *scan_ssid = (char *)aps[i].ssid;
+
+    if (is_connected && strlen(scan_ssid) > 0) {
+      connected = (strcmp(connected_ssid, scan_ssid) == 0);
+    }
+    cJSON_AddBoolToObject(obj, "connected", connected);
     cJSON_AddItemToArray(arr, obj);
   }
 
@@ -58,7 +84,7 @@ static esp_err_t scan_get_handler(httpd_req_t *req) {
 
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
-  ESP_LOGI(TAG, "%s", json);
+  // ESP_LOGI(TAG, "%s", json);
   cJSON_free(json);
   cJSON_Delete(arr);
   free(aps);
@@ -86,7 +112,7 @@ static esp_err_t get_nearby_devices_handler(httpd_req_t *req) {
   char *json_str = cJSON_PrintUnformatted(root);
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
-  ESP_LOGI(TAG, "%s", json_str);
+  // ESP_LOGI(TAG, "%s", json_str);
   cJSON_free(json_str);
   cJSON_Delete(root);
   return ESP_OK;
@@ -105,7 +131,7 @@ static esp_err_t get_wired_status_handler(httpd_req_t *req) {
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
 
-  ESP_LOGI(TAG, "%s", json_str);
+  // ESP_LOGI(TAG, "%s", json_str);
 
   cJSON_free(json_str);
   cJSON_Delete(root);
@@ -135,18 +161,27 @@ static esp_err_t post_connect_handler(httpd_req_t *req) {
   }
 
   ESP_LOGI(TAG, "SSID: %s", ssid->valuestring);
-  // connect_wifi("brasil", "brasil5g");
+  ESP_LOGI(TAG, "AM I CONNECTED ? %s", is_wifi_connected() ? "true" : "false");
+  wifi_ap_record_t ap;
+
+  if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+    ESP_LOGI(TAG, "SSID: %s", ap.ssid);
+    ESP_LOGI(TAG, "RSSI: %d", ap.rssi);
+    ESP_LOGI(TAG, "Channel: %d", ap.primary);
+  }
+
+  if (!is_wifi_connected()) {
+    connect_wifi(ssid->valuestring, password->valuestring, on_wifi_result);
+  }
 
   // Build response
   cJSON *resp = cJSON_CreateObject();
 
   if (true) {
     cJSON_AddBoolToObject(resp, "success", true);
-    ESP_LOGI(TAG, "Wi-Fi connected");
   } else {
     cJSON_AddBoolToObject(resp, "success", false);
     cJSON_AddStringToObject(resp, "reason", "connection_failed");
-    ESP_LOGE(TAG, "Wi-Fi failed");
   }
 
   char *json_str = cJSON_PrintUnformatted(resp);
@@ -167,14 +202,15 @@ static esp_err_t post_disconnect_handler(httpd_req_t *req) {
     return ESP_FAIL;
   }
 
-  cJSON_AddBoolToObject(root, "connected", true);
+  disconnect_wifi();
+  cJSON_AddBoolToObject(root, "disconnected", true);
 
   char *json_str = cJSON_PrintUnformatted(root);
 
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
 
-  ESP_LOGI(TAG, "%s", json_str);
+  // ESP_LOGI(TAG, "%s", json_str);
 
   cJSON_free(json_str);
   cJSON_Delete(root);
@@ -195,7 +231,7 @@ static esp_err_t post_pair_handler(httpd_req_t *req) {
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
 
-  ESP_LOGI(TAG, "%s", json_str);
+  // ESP_LOGI(TAG, "%s", json_str);
 
   cJSON_free(json_str);
   cJSON_Delete(root);
@@ -216,7 +252,7 @@ static esp_err_t post_unpair_handler(httpd_req_t *req) {
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, json_str, HTTPD_RESP_USE_STRLEN);
 
-  ESP_LOGI(TAG, "%s", json_str);
+  // ESP_LOGI(TAG, "%s", json_str);
 
   cJSON_free(json_str);
   cJSON_Delete(root);

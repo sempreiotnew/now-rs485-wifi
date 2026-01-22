@@ -932,6 +932,13 @@
 
           hasWifiData = true;
 
+          // Update connectedNetwork based on API response
+          networks.forEach((n) => {
+            if (n.connected === true) {
+              connectedNetwork = n.ssid || "(Hidden)";
+            }
+          });
+
           if (networks.length === 0) {
             ul.innerHTML = '<li class="empty-state">No networks found</li>';
           } else {
